@@ -14,7 +14,3 @@ public:
 	vector<KeyPoint> featureExtractionBySIFT(Mat image);
 	vector<KeyPoint> featureExtractionByORB(Mat image);
 };
-
-
-//vector<KeyPoint> featureExtractionBySIFT(Mat image);
-//vector<KeyPoint> featureExtractionByORB(Mat image);
