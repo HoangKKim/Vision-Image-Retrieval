@@ -1,0 +1,11 @@
+../../Data/TMBuD-main/TMBuD-main/images/
+00004.png Orthodox Metropolitan Cathedral
+00513.png Bruck House
+03404.png Serbian Community House
+04202.png Military Casino of Timisoara
+05604.png Fire Brigade 2
+06103.png The National Opera House
+09001.png Building 7 Str. E. Ungureanu
+10602.png Franz Anheuer Palace
+11211.png Marczel Kaldori Palace
+12506.png Banatul Philharmonic of Timisoara
