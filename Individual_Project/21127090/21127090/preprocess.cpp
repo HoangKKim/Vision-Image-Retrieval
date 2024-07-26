@@ -1,41 +1,5 @@
 #include "train_function.h"
 
-// write txt file
-
-void countLabels(string data_filename, string data_type, string save_file) {
-	Dataset data;
-	data.readXML(data_filename, data_type);
-	// count label
-	vector<pair<string, int>> LabelsInfo;
-	int count = 1;
-	string previousLabel = data.getData()[0].getLabel();
-	for (int i = 1; i < data.getData().size(); i++) {
-		string currentLabel = data.getData()[i].getLabel();
-		if (currentLabel != previousLabel) {
-			LabelsInfo.push_back(make_pair(previousLabel, count));
-			count = 1;
-			previousLabel = currentLabel;
-		}
-		else {
-			count++;
-		}
-	}
-	// save file
-	ofstream file(save_file);
-
-	// Cannot open file
-	if (!file.is_open()) {
-		cout << "Cannot open file" << endl;
-		return;
-	}
-
-	// write label for each image
-	for (const auto& pair : LabelsInfo) {
-		file << pair.second << " " << pair.first << endl;
-	}
-	//close file
-	file.close();
-}
 
 void preprocess_data() {
 	string csvFileName = "DATASET\ SPLIT.csv";
@@ -48,13 +12,15 @@ void preprocess_data() {
 	data_TMBuD.readCSV(folder_TMBuD, csvFileName);
 	data_CD.createLabel(folder_CD);
 
-	// count number of each label in a dataset
+	// write the dataset in the new type of file (xml)
 	data_TMBuD.writeXML(data_TMBuD.getData(), "../../Database/TMBuD/TMBuD.xml", "TMBuD");
 	data_CD.writeXML(data_CD.getData(), "../../Database/CD/CD.xml", "CD");
-	countLabels("../../Database/CD/CD.xml", "CD", "../../Database/CD/labels.txt");
-	countLabels("../../Database/TMBuD/TMBuD.xml", "TMBuD", "../../Database/TMBuD/labels.txt");
+	
+	// count number of each label in a dataset
+	data_CD.countLabels("../../Database/CD/CD.xml", "CD", "../../Database/CD/labels.txt");
+	data_TMBuD.countLabels("../../Database/TMBuD/TMBuD.xml", "TMBuD", "../../Database/TMBuD/labels.txt");
 
-
+	// extract 
 	//process data in CD file
 	Mat sift_descriptors, orb_descriptors, color_hist_descriptors;
 	// extract feature
@@ -64,32 +30,27 @@ void preprocess_data() {
 		Mat image = imread(myImage.getFileName());
 		// resize image
 		resize(image, image, Size(), 0.5, 0.5); // Resize decrease 50%
-
+		vector<KeyPoint> key;
 		Mat sift = myImage.extractLocalFeature(image, "SIFT");
 		Mat orb = myImage.extractLocalFeature(image, "ORB");
-		Mat color_hist = myImage.computeColorHistogram(image);
 		myImage.setSIFT(sift);
 		myImage.setORB(orb);
-		myImage.setHistogram(color_hist);
 
 		data_CD.setImageInData(i, myImage);
 		sift_descriptors.push_back(sift);
 		orb_descriptors.push_back(orb);
-		color_hist_descriptors.push_back(color_hist);
 		cout << i + 1 << "..." << " ";
 	}
 
 	// find visual words
 	cout << "\nKmeans..." << endl;
-	Mat center_sift = buildVisualWords(sift_descriptors, 100, Mat());
-	Mat center_orb = buildVisualWords(orb_descriptors, 100, Mat());
-	Mat center_hist = buildVisualWords(color_hist_descriptors, 100, Mat());
+	Mat center_sift = buildVisualWords(sift_descriptors, 100);
+	Mat center_orb = buildVisualWords(orb_descriptors, 100);
 
 	// save 
 	cout << "Save data.. " << endl;
 	data_CD.save_BinaryFile(center_sift, "../../Database/CD/Centroid_SIFT_100.bin");
 	data_CD.save_BinaryFile(center_orb, "../../Database/CD/Centroid_ORB_100.bin");
-	data_CD.save_BinaryFile(center_hist, "../../Database/CD/Centroid_hist_100.bin");
 
 	// compute hist of visual words 
 	for (int i = 0; i < data_CD.getData().size(); i++) {
@@ -98,12 +59,9 @@ void preprocess_data() {
 		Mat histBoW_sift = computeHistogram(myImage_.getSIFT(), data_CD.getCentroids());
 		data_CD.setCentroids(center_orb);
 		Mat histBoW_orb = computeHistogram(myImage_.getORB(), data_CD.getCentroids());
-		data_CD.setCentroids(center_hist);
-		Mat histBoW_hist = computeHistogram(myImage_.getHistogram(), data_CD.getCentroids());
 
 		myImage_.setSIFT(histBoW_sift);
 		myImage_.setORB(histBoW_orb);
-		myImage_.setHistogram(histBoW_hist);
 
 		data_CD.setImageInData(i, myImage_);
 		cout << "." << " ";
@@ -119,6 +77,7 @@ void preprocess_data() {
 		// resize image
 		resize(image, image, Size(), 0.5, 0.5); // Resize decrease 50%
 
+		vector<KeyPoint> key;
 		Mat sift = myImage.extractLocalFeature(image, "SIFT");
 		Mat orb = myImage.extractLocalFeature(image, "ORB");
 		Mat color_hist = myImage.computeColorHistogram(image);
@@ -135,15 +94,13 @@ void preprocess_data() {
 
 	// find visual words
 	cout << "\nKmeans..." << endl;
-	center_sift = buildVisualWords(sift_descriptors, 100, Mat());
-	center_orb = buildVisualWords(orb_descriptors, 100, Mat());
-	center_hist = buildVisualWords(color_hist_descriptors, 100, Mat());
+	center_sift = buildVisualWords(sift_descriptors, 100);
+	center_orb = buildVisualWords(orb_descriptors, 100);
 
 	// save 
 	cout << "Save data.. " << endl;
 	data_TMBuD.save_BinaryFile(center_sift, "../../Database/TMBuD/Centroid_SIFT_100.bin");
 	data_TMBuD.save_BinaryFile(center_orb, "../../Database/TMBuD/Centroid_ORB_100.bin");
-	data_TMBuD.save_BinaryFile(center_hist, "../../Database/TMBuD/Centroid_hist_100.bin");
 
 	// compute hist of visual words 
 	for (int i = 0; i < data_TMBuD.getData().size(); i++) {
@@ -152,16 +109,94 @@ void preprocess_data() {
 		Mat histBoW_sift = computeHistogram(myImage_.getSIFT(), data_TMBuD.getCentroids());
 		data_TMBuD.setCentroids(center_orb);
 		Mat histBoW_orb = computeHistogram(myImage_.getORB(), data_TMBuD.getCentroids());
-		data_TMBuD.setCentroids(center_hist);
-		Mat histBoW_hist = computeHistogram(myImage_.getHistogram(), data_TMBuD.getCentroids());
 
 		myImage_.setSIFT(histBoW_sift);
 		myImage_.setORB(histBoW_orb);
-		myImage_.setHistogram(histBoW_hist);
 
 		data_TMBuD.setImageInData(i, myImage_);
 		cout << "." << " ";
 	}
 
 	data_TMBuD.writeXML(data_TMBuD.getData(), "../../Database/TMBuD/TMBuD.xml", "TMBuD");
+}
+
+// tach cac feature ra thanh local va global
+void preprocess_data_localFeature() {
+	// read dataset from xml file
+	Dataset myDataset;
+	//myDataset.readXML("../../Database/TMBuD/TMBuD.xml", "TMBuD");
+	//string localFeature_folder = "../../Database/TMBuD/";
+	myDataset.readXML("../../Database/CD/CD.xml", "CD");
+	string localFeature_folder = "../../Database/CD/";
+	vector <Mat> histgrams;
+
+	cout << "extract feature" << endl;
+	for (int i = 0; i < myDataset.getData().size(); i++) {
+		Image myImage = myDataset.getData()[i];
+		myImage.setHistogram(Mat());
+		myImage.setCorrelogram(Mat());
+
+		myDataset.setImageInData(i, myImage);
+		cout << i + 1 << "..";
+	}
+	//myDataset.writeXML(myDataset.getData(), localFeature_folder + "TMBuD_LocalFeature.xml", "TMBuD");
+	myDataset.writeXML(myDataset.getData(), localFeature_folder + "CD_LocalFeature.xml", "CD");
+
+}
+
+
+void preprocess_data_histogram() {
+	// read dataset from xml file
+	Dataset myDataset;
+	myDataset.readXML("../../Database/CD/CD.xml", "CD");
+	
+	string Histogram_folder = "../../Database/CD/";
+	cout << "extract feature" << endl;
+	for (int i = 0; i < myDataset.getData().size(); i++) {
+		Image myImage = myDataset.getData()[i];
+		Mat image = imread(myImage.getFileName());
+		resize(image, image, Size(), 0.5, 0.5); // Resize decrease 50%
+
+		// compute histogram
+		Mat histogram = myImage.computeColorHistogram(image);
+		myImage.setHistogram(histogram);
+		myImage.setCorrelogram(Mat());
+		myImage.setSIFT(Mat());
+		myImage.setORB(Mat());
+
+
+		myDataset.setImageInData(i, myImage);
+		cout << i + 1 << "..";
+	}
+	myDataset.writeXML(myDataset.getData(), Histogram_folder + "CD_Histogram.xml", "CD");
+}
+
+void preprocess_data_correlogram() {
+	// read dataset from xml file
+	Dataset myDataset;
+	myDataset.readXML("../../Database/CD/CD.xml", "CD");
+
+	string Correlogram_folder = "../../Database/CD/";
+	cout << "extract feature" << endl;
+	vector<Mat> Corre;
+	for (int i = 0; i < myDataset.getData().size(); i++) {
+		Image myImage = myDataset.getData()[i];
+		Mat image = imread(myImage.getFileName());
+		resize(image, image, Size(), 0.5, 0.5); // Resize decrease 50%
+		
+		//compute histogram
+		Mat correlogram = myImage.computeCorrelogram(image);
+		
+		myImage.setCorrelogram(correlogram);
+
+		myImage.setHistogram(Mat());
+		myImage.setSIFT(Mat());
+		myImage.setORB(Mat());
+
+		myDataset.setImageInData(i, myImage);
+		cout << i + 1 << "..";
+		Corre.push_back(correlogram);
+	}
+	myDataset.save_BinaryFile(Corre, Correlogram_folder + "all_corre.bin");
+	myDataset.writeXML(myDataset.getData(), Correlogram_folder + "CD_Correlogram.xml", "CD");
 }

@@ -4,6 +4,7 @@ void Searcher::setDatabase(string file_name_db, string database_type, string fea
     this->data.loadDatabase(file_name_db, database_type, feature_type);
     this->data.loadCentroids(file_name_centroids);
     this->data.loadLabelsInfo(file_name_labels);
+    
 }
 
 vector<float>Searcher::getRecall() {
@@ -13,6 +14,9 @@ void Searcher::addRecall(float recall) {
     this->recall.push_back(recall);
 }
 
+Database Searcher::getData() {
+    return this->data;
+}
 
 vector<float>Searcher::getAveragePrecision() {
     return this->averagePrecision;
@@ -74,7 +78,46 @@ vector<pair<int, double>> Searcher::searchByHistogram(Mat queryImage) {
     vector<pair<int, double>> distances;
     for (int i = 0; i < data.getData().size(); i++) {
         Image image = data.getData()[i];
-        double dist = computeDistance(queryHistogram, image.getHistogram());
+        //double dist = computeDistance(queryHistogram, image.getHistogram());
+        double dist = compareHist(queryHistogram, image.getHistogram(), HISTCMP_CORREL);
+        distances.push_back(make_pair(i, dist));
+    }
+
+    // sort 
+    std::sort(distances.begin(), distances.end(),
+        [](const pair<int, double>& a, const pair<int, double >& b) {
+            return a.second > b.second;
+        });
+    return distances;
+}
+
+vector<pair<int, double>> Searcher::searchByCorrelogram(Mat queryImage) {
+    // process query image
+    Mat queryHistogram = processQueryImages(queryImage, "Correlogram", this->data.getCentroid());
+
+    // compute distance between query & database
+    vector<pair<int, double>> distances;
+    for (int i = 0; i < data.getData().size(); i++) {
+        Image image = data.getData()[i];
+        //double dist = norm(queryHistogram, image.getCorrelogram(), NORM_L2);
+        double dist = compareHist(queryHistogram, image.getCorrelogram(), NORM_L2);
+        distances.push_back(make_pair(i, dist));
+    }
+
+    // sort 
+    std::sort(distances.begin(), distances.end(), compareBySecond);
+    return distances;
+}
+
+vector<pair<int, double>> Searcher::searchByCombine(Mat queryImage) {
+    // process query image
+    Mat queryHistogram = processQueryImages(queryImage, "Combine", this->data.getCentroid());
+
+    // compute distance between query & database
+    vector<pair<int, double>> distances;
+    for (int i = 0; i < data.getData().size(); i++) {
+        Image image = data.getData()[i];
+        double dist = computeDistance(queryHistogram, image.getCombine());
         distances.push_back(make_pair(i, dist));
     }
 
@@ -170,34 +213,15 @@ Mat Searcher::displayResultImages(vector<Mat>& vecMat, int windowHeight, int nRo
     return canvasImage;
 }
 
-double Searcher::computeAveragePrecision(string queryLabel) {
-    int count = 0;
-
-    // count number of image is retrived true
-    for (int i = 0; i < this->resultImages.size(); i++) {
-        if (queryLabel == resultImages[i].getLabel()) {
-            count++;
-        }
-    }
-    this->trueResult = count;
-
-    double result = double((double)count / (double)this->resultImages.size());
-    return result;
-}
-
-double Searcher::computeRecall(string queryLabel) {
-    int count = 0;
-    for (int i = 0; i < this->data.getLabelsInfo().size(); i++) {
-        if (queryLabel == this->data.getLabelsInfo()[i].first) {
-            double result = (double)this->trueResult / (double)this->data.getLabelsInfo()[i].second;
-            return result;
-        }
-    }
-}
-
-
 double Searcher::computeDistance(Mat query, Mat database) {
-    double dist = cv::norm(query - database, cv::NORM_L2);
+    //double dist = cv::norm(query - database, cv::NORM_L2);
+    vector<DMatch> matches;
+    FlannBasedMatcher matcher;
+    matcher.match(query, database, matches);
+    float dist = 0.0;
+    for (const auto& match : matches) {
+        dist += match.distance;
+    }
     return dist;
 }
 
@@ -205,7 +229,7 @@ Mat Searcher::processQueryImages(Mat image, string feature_type, Mat centers) {
     Mat queryImage;
     // scale image in the same size with database images
     resize(image, queryImage, Size(), 0.5, 0.5); // Resize decrease 50%
-
+    
     Mat queryFeature;
     Image myImage;
     // extract feature
@@ -214,8 +238,12 @@ Mat Searcher::processQueryImages(Mat image, string feature_type, Mat centers) {
     }
     else if (feature_type == "Histogram") {
         queryFeature = myImage.computeColorHistogram(queryImage);
+        return queryFeature;
     }
-
+    else if (feature_type == "Correlogram") {
+        queryFeature = myImage.computeCorrelogram(queryImage);
+        return queryFeature;
+    }
     // compute hist bag of words
     Mat queryHistogram = computeHistogram(queryFeature, centers);
     return queryHistogram;
@@ -225,25 +253,35 @@ void Searcher::removeResultImages() {
     this->resultImages.clear();
 }
 
-void Searcher::setResultImages(int kClosestImages, vector<pair<int, double>> sorted_images) {
-    for (int i = 0; i < kClosestImages; i++) {
-        Image myImage = data.getData()[sorted_images[i].first];
-        addResultImages(myImage);
+void Searcher::setResultImages(int kClosestImages, vector<pair<int, double>> sorted_images, string data_type) {
+    if (data_type == "CD") {
+        for (int i = 0; i < kClosestImages; i++) {
+            // get info of k-closest images and add into class's attribute
+            Image myImage = data.getData()[sorted_images[i].first];
+            addResultImages(myImage);
+        }
+    }
+    else {
+        for (int i = 1; i <= kClosestImages; i++) {
+            // get info of k-closest images and add into class's attribute
+            Image myImage = data.getData()[sorted_images[i].first];
+            addResultImages(myImage);
+        }
     }
 }
 
-void Searcher::printResultInfor(double AP, double recall, int kImages, double duration) {
+void Searcher::printResultInfor(double AP, double recall, int kImages, double duration, string queryImageName, string label) {
 
     cout << endl << "---------------------------------------------------" << endl;
-    cout << "List of result images: " << endl;
+    cout << "List of result for query image: " << queryImageName<<" - Label: "<<label<< endl;
     for (int i = 0; i < kImages; i++) {
         Image image = this->resultImages[i];
         cout << image.getFileName() << " " << image.getLabel() << endl;
     }
     cout << endl;
-    cout << "- Time for retrival: " << duration << " sec" << endl;
-    cout << "- AP: " << AP << endl;
+    cout << "- Time for retrival: " << duration << " seconds" << endl;
     cout << "- Recall: " << recall << endl;
+    cout << "- AP: " << AP << endl;
 }
 
 void Searcher::showResult(Mat queryImage, int kImages) {
@@ -275,4 +313,48 @@ void Searcher::showResult(Mat queryImage, int kImages) {
     waitKey();
     destroyWindow("query");
     destroyWindow("result");
+}
+
+
+vector<double> Searcher::computePrecision(string queryLabel) {
+    int count = 0;
+    std::vector<double> precision_at_k;
+
+    // count number of images retrieved correctly
+    for (int i = 0; i < this->resultImages.size(); i++) {
+        if (queryLabel == resultImages[i].getLabel()) {
+            count++;
+            double precision = double(count) / double(i + 1);
+            precision_at_k.push_back(precision);
+        }
+    }
+    this->trueResult = count;
+    return precision_at_k;
+}
+
+double Searcher::computeRecall(string queryLabel) {
+    int count = 0;
+    for (int i = 0; i < this->data.getLabelsInfo().size(); i++) {
+        if (queryLabel == this->data.getLabelsInfo()[i].first) {
+            double result = (double)this->trueResult / (double)this->data.getLabelsInfo()[i].second;
+            return result;
+        }
+    }
+    return 0.0;
+}
+
+double Searcher::computeAveragePrecision(string queryLabel) {
+    std::vector<double> precision_at_k = computePrecision(queryLabel);
+
+    if (precision_at_k.empty()) {
+        return 0.0; // no image is retrived correctly
+    }
+
+    double sum_precision = 0.0;
+    for (double precision : precision_at_k) {
+        sum_precision += precision;
+    }
+
+    double average_precision = sum_precision / precision_at_k.size();
+    return average_precision;
 }

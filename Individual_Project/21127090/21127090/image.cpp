@@ -24,6 +24,10 @@ Mat Image::getCorrelogram() {
     return correlogram;
 }
 
+Mat Image::getCombine() {
+    return combine;
+}
+
 // Implementation of setters
 void Image::setFileName(string filename) {
     this->filename = filename;
@@ -49,14 +53,19 @@ void Image::setCorrelogram(Mat correlogram) {
     this->correlogram = correlogram;
 }
 
+void Image::setCombine(Mat combine) {
+    this->combine = combine;
+}
+
 Mat Image::extractLocalFeature(Mat image, string type) {
     // convert to gray image
     Mat grayImage;
     cvtColor(image, grayImage, COLOR_BGR2GRAY);
+    vector<KeyPoint> keypoint;
 
     // init Feature Extraction Method
     Mat descriptor;
-    vector<KeyPoint> keypoint;
+    //vector<KeyPoint> keypoint;
     Ptr<Feature2D> feature;
     if (type == "SIFT") {
         feature = SIFT::create();
@@ -77,32 +86,28 @@ Mat Image::computeColorHistogram(Mat image) {
     int histSize = 256;		// set the number of bins in the histogram
     float range[] = { 0, 256 };		// define the range of the histogram values
     const float* histRange[] = { range };
-    bool uniform = true, accumulate = false;	// Specifies the properties for the histogram calculation: uniform bins and no accumulation of results
-    Mat hist_b, hist_g, hist_r;
+    // Specifies the properties for the histogram calculation: uniform bins and no accumulation of results
+    bool uniform = true, accumulate = false;	
     vector<Mat> bgr_planes;
 
     // using split to separate the image in its three R, G and B planes
     split(image, bgr_planes);
 
     // compute the histogram for each color channel
-    calcHist(&bgr_planes[0], 1, 0, Mat(), hist_b, 1, &histSize, histRange, uniform, accumulate);		// for blue 
-    calcHist(&bgr_planes[1], 1, 0, Mat(), hist_g, 1, &histSize, histRange, uniform, accumulate);		// for green
-    calcHist(&bgr_planes[2], 1, 0, Mat(), hist_r, 1, &histSize, histRange, uniform, accumulate);		// for red
-
-    normalize(hist_b, hist_b, 0, 1, NORM_MINMAX, -1, Mat());
-    normalize(hist_g, hist_g, 0, 1, NORM_MINMAX, -1, Mat());
-    normalize(hist_r, hist_r, 0, 1, NORM_MINMAX, -1, Mat());
-
     Mat histImg;
-    hconcat(hist_b, hist_g, histImg);
-    hconcat(histImg, hist_r, histImg);
+    for (int i = 0; i < 3; i++) {
+        Mat hist_channels, hist_norm;
+        calcHist(&bgr_planes[i], 1, 0, Mat(), hist_channels, 1, &histSize, histRange, uniform, accumulate);
+        normalize(hist_channels, hist_norm, 0, 1, NORM_MINMAX);
+        histImg.push_back(hist_norm.reshape(1, 1));
+    }
 
-    return histImg;
+    return histImg.reshape(1,1);
 }
 
 Mat Image::computeCorrelogram(const Mat& image) {
-    int numColors = 256;  // Assume quantization to 256 levels
-    int maxDistance = 1;
+    int numColors = 16;  // Assume quantization to 256 levels
+    int maxDistance = 5;
 
     // Convert to HSV color space
     Mat hsv;
@@ -137,7 +142,6 @@ Mat Image::computeCorrelogram(const Mat& image) {
     }
 
     // Normalize the correlogram
-    normalize(correlogram, correlogram, 1, 0, NORM_L1, -1, Mat());
-
+    normalize(correlogram, correlogram, 1, 0, NORM_MINMAX, -1, Mat());
     return correlogram;
 }

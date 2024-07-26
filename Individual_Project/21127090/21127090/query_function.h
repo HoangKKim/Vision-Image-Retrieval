@@ -1,5 +1,6 @@
 #pragma once
 #include "train_function.h"
+#include <opencv2/flann.hpp>
 
 class Database {
 private:
@@ -32,7 +33,8 @@ public:
 	vector<Image> getResultImages();
 	void addResultImages(Image image);
 
-	void setDatabase(string file_name_db, string database_type, string feature_type, string file_name_centroids, string file_name_labels);	Database getData();
+	void setDatabase(string file_name_db, string database_type, string feature_type, string file_name_centroids, string file_name_labels);	
+	Database getData();
 
 	double computeDistance(Mat query, Mat database);
 	Mat processQueryImages(Mat image, string feature_type, Mat centers);
@@ -41,18 +43,21 @@ public:
 	vector<pair<int, double>> searchBySIFT(Mat queryImage);
 	vector<pair<int, double>> searchByORB(Mat queryImage);
 	vector<pair<int, double>> searchByHistogram(Mat queryImage);
+	vector<pair<int, double>> searchByCorrelogram(Mat queryImage);
+	vector<pair<int, double>> searchByCombine(Mat queryImage);
 
 	static bool compareBySecond(const pair<int, double>& a, const pair<int, double>& b);
 
 	void removeResultImages();
 
-	void setResultImages(int kClosestImages, vector<pair<int, double>> sorted_images);
+	void setResultImages(int kClosestImages, vector<pair<int, double>> sorted_images, string data_type);
 
 	Mat displayResultImages(vector<Mat>& vecMat, int windowHeight, int nRows);
 	double computeAveragePrecision(string queryLabel);
+	vector<double> computePrecision(string queryLabel);
 	double computeRecall(string queryLabel);
 
-	void printResultInfor(double AP, double recall, int kImages, double duration);
+	void printResultInfor(double AP, double recall, int kImages, double duration, string queryImageName, string label);
 	void showResult(Mat queryImage, int kImages);
 };
 

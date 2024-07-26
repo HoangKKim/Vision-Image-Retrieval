@@ -75,13 +75,16 @@ vector<Image> Dataset::createLabel(const string& folder) {
     for (size_t i = 0; i < fileName.size(); i++) {
         Image Image;
         string image_filename, image_label;
+
+        // get the file name and label of each image
         string name = getFileName(fileName[i]);
         image_filename = fileName[i];
         image_label = name.substr(0, 2);
 
         Image.setFileName(image_filename);
         Image.setLabel(image_label);
-
+        
+        // add these infor into data
         data.push_back(Image);
     }
     this->data = data;
@@ -104,6 +107,7 @@ void Dataset::writeXML(vector <Image> data, string filenName_XML, string type) {
         fs << "orb" << data[i].getORB();
         fs << "hist" << data[i].getHistogram();
         fs << "correlogram" << data[i].getCorrelogram();
+        fs << "combine" << data[i].getCombine();
         fs << "}";
     }
     fs << "}";
@@ -127,18 +131,20 @@ vector<Image> Dataset::readXML(string fileName_XML, string type) {
     }
     for (FileNodeIterator it = nodes.begin(); it != nodes.end(); ++it) {
         Image Image;
-        Mat sift, orb, histogram, correlogram;
+        Mat sift, orb, histogram, correlogram, combine;
         Image.setFileName((string)(*it)["filename"]);
         Image.setLabel((string)(*it)["label"]);
         (*it)["sift"] >> sift;
         (*it)["orb"] >> orb;
         (*it)["hist"] >> histogram;
         (*it)["correlogram"] >> correlogram;
+        (*it)["combine"] >> combine;
 
         Image.setSIFT(sift);
         Image.setORB(orb);
         Image.setHistogram(histogram);
         Image.setCorrelogram(correlogram);
+        Image.setCombine(combine);
 
         data.push_back(Image);
     }
@@ -169,11 +175,38 @@ void Dataset::save_BinaryFile(Mat descriptor, string fileName) {
     }
 }
 
+void Dataset::save_BinaryFile(vector<Mat> descriptors, string fileName) {
+    ofstream fo(fileName, ios::binary);
+
+    if (fo.is_open()) {
+        for (int i = 0; i < descriptors.size(); i++) {
+            Mat descriptor = descriptors[i];
+            
+            // features
+            int rows = descriptor.rows;
+            int cols = descriptor.cols;
+            int type = descriptor.type();
+
+            fo.write((char*)&rows, sizeof(int));
+            fo.write((char*)&cols, sizeof(int));
+            fo.write((char*)&type, sizeof(int));
+            fo.write((char*)descriptor.data, descriptor.total() * descriptor.elemSize());
+        }
+        
+
+        fo.close();
+    }
+    else {
+        cout << "Unable to open file for writing: " << fileName << endl;
+    }
+}
+
+
 Mat Dataset::load_BinaryFile(const string& filename) {
     ifstream file(filename, ios::binary);
 
     Mat data;
-
+    
     if (file.is_open()) {
         //cout << "OpenFile";
         while (file.peek() != EOF) {
@@ -192,4 +225,66 @@ Mat Dataset::load_BinaryFile(const string& filename) {
         cout << "Load database successfully";
     }
     return data;
+}
+
+vector<Mat> Dataset::load_BinaryFile_vector(const string& filename) {
+    ifstream file(filename, ios::binary);
+    vector<Mat> colorHist;
+    Mat data;
+
+    if (file.is_open()) {
+        //cout << "OpenFile";
+        while (file.peek() != EOF) {
+
+            int rows, cols, type;
+
+            file.read((char*)&rows, sizeof(int));
+            file.read((char*)&cols, sizeof(int));
+            file.read((char*)&type, sizeof(int));
+
+            data = Mat(rows, cols, type);
+            file.read((char*)data.data, data.total() * data.elemSize());
+
+            colorHist.push_back(data);
+        }
+        file.close();
+        cout << "Load database successfully";
+    }
+    return colorHist;
+}
+
+// write txt file
+void Dataset::countLabels(string data_filename, string data_type, string save_file) {
+    Dataset data;
+    data.readXML(data_filename, data_type);
+    // count label
+    vector<pair<string, int>> LabelsInfo;
+    int count = 1;
+    string previousLabel = data.getData()[0].getLabel();
+    for (int i = 1; i < data.getData().size(); i++) {
+        string currentLabel = data.getData()[i].getLabel();
+        if (currentLabel != previousLabel) {
+            LabelsInfo.push_back(make_pair(previousLabel, count));
+            count = 1;
+            previousLabel = currentLabel;
+        }
+        else {
+            count++;
+        }
+    }
+    // save file
+    ofstream file(save_file);
+
+    // Cannot open file
+    if (!file.is_open()) {
+        cout << "Cannot open file" << endl;
+        return;
+    }
+
+    // write label for each image
+    for (const auto& pair : LabelsInfo) {
+        file << pair.second << " " << pair.first << endl;
+    }
+    //close file
+    file.close();
 }

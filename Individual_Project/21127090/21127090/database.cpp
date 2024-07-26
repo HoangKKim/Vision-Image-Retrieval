@@ -25,7 +25,6 @@ void Database::loadDatabase(string file_name, string database_type, string featu
     if (nodes.empty()) {
         return;
     }
-
     for (FileNodeIterator it = nodes.begin(); it != nodes.end(); ++it) {
         Image Image;
         Mat feature;
@@ -48,7 +47,10 @@ void Database::loadDatabase(string file_name, string database_type, string featu
             (*it)["correlogram"] >> feature;
             Image.setCorrelogram(feature);
         }
-
+        else if (feature_type == "Combine") {
+            (*it)["combine"] >> feature;
+            Image.setCombine(feature);
+        }
         this->data.push_back(Image);
     }
     fs.release();
