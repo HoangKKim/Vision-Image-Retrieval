@@ -1046,4 +1046,4 @@ dkms.conf
 *.dis
 
 # Virtual Environment
-venv/
+.venv
