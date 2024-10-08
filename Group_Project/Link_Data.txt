@@ -1,0 +1,15 @@
+- FashionIQ dataset: https://www.kaggle.com/datasets/hoangkim14/fashion-iq-dataset
+
+- Ảnh được phân theo từng loại thời trang: https://www.kaggle.com/datasets/hoangkim14/fashion-images
+
+- Tất cả đặc trưng của tập dữ liệu: https://www.kaggle.com/datasets/hoangkim14/features
+
+- Đặc trưng cho từng loại thời trang: https://www.kaggle.com/datasets/hoangkim14/each-category-features
+
+- Đặc trưng và nhãn được chia theo các tập train, test và valid: https://www.kaggle.com/datasets/hoangkim14/features-and-labels-fashioniq
+
+- Trọng số cho mô hình ResNet50: https://www.kaggle.com/datasets/hoangkim14/resnet50-weight-fashion
+
+- Trọng số cho mô hình SVM: https://kaggle.com/datasets/hoangkim14/svm-model
+
+
